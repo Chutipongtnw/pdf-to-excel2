@@ -209,7 +209,7 @@ if uploaded_file is not None:
             df.to_excel(writer, index=False)
             
         st.download_button(
-            label="📥 ดาวน์โหลดไฟล์ Excel (v58)",
+            label="📥 ดาวน์โหลดไฟล์ Excel",
             data=output.getvalue(),
             file_name="student_report_v58.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
