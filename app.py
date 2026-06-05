@@ -104,10 +104,10 @@ def clean_invisible_and_spaces(text):
     text = re.sub(r'[\u0000-\u001f\u007f-\u009f\uf000-\uf0ff\u200b\u00a0\s]', '', text)
     return text.strip()
 
-st.set_page_config(page_title="ระบบดึงข้อมูลอัจฉริยะ v58", layout="wide")
-st.title("📂 ระบบดึงข้อมูล PDF เป็น Excel v58 (แก้ปัญหาเกรดว่างเปล่า)")
+st.set_page_config(page_title="ระบบแปลงไฟล์ PDF to Excel เฉพาะไฟล์ผลการเรียนบกพร่อง รายวิชา ธนว เท่านั้น", layout="wide")
+st.title("📂 ระบบแปลงไฟล์ PDF to Excel เฉพาะไฟล์ผลการเรียนบกพร่อง รายวิชา ธนว เท่านั้น")
 
-uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อรัน v58", type="pdf")
+uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อแปลงเป็น Excel", type="pdf")
 
 if uploaded_file is not None:
     all_data = []
