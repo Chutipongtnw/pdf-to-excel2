@@ -92,22 +92,22 @@ def universal_thai_cleaner(text):
     # 9. คืนค่าช่องว่าง 1 เคาะ หน้าตัวเลขท้ายชื่อวิชา
     text = re.sub(r'(\d+)$', r' \1', text)
 
-    # 10. ตัดตัวเลขลำดับหน้าชื่อวิชาออก เช่น 1., 2.
+    # 10. ตัดตัวเลขลำดับหน้าชื่อวิชาออก
     text = re.sub(r'^\s*\d+\s*\.\s*', '', text)
 
     return text.strip()
 
 def clean_invisible_and_spaces(text):
     """ฟังก์ชันสำหรับลบช่องว่างและอักขระที่มองไม่เห็นทั้งหมด"""
-    if not text: return ""
+    if text is None: return ""
     text = str(text).replace('\n', '')
     text = re.sub(r'[\u0000-\u001f\u007f-\u009f\uf000-\uf0ff\u200b\u00a0\s]', '', text)
     return text.strip()
 
-st.set_page_config(page_title="ระบบดึงข้อมูลอัจฉริยะ v57", layout="wide")
-st.title("📂 ระบบดึงข้อมูล PDF เป็น Excel v57 (ลบช่อง 'ที่' และล็อกคอลัมน์เกรด)")
+st.set_page_config(page_title="ระบบดึงข้อมูลอัจฉริยะ v58", layout="wide")
+st.title("📂 ระบบดึงข้อมูล PDF เป็น Excel v58 (แก้ปัญหาเกรดว่างเปล่า)")
 
-uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อรัน v57", type="pdf")
+uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อรัน v58", type="pdf")
 
 if uploaded_file is not None:
     all_data = []
@@ -138,45 +138,52 @@ if uploaded_file is not None:
                         line_text = line_text.split(kw)[0]
                 subject_name = universal_thai_cleaner(line_text)
 
-            # 4. ดึงข้อมูลตารางคะแนน/เกรดนักเรียน
+            # 4. ดึงข้อมูลตารางคะแนน
             table = page.extract_table()
             if table:
-                # ค่าดัชนีคอลัมน์เริ่มต้นมาตรฐานของ PDF (ล็อกไว้เลยเพื่อความชัวร์)
-                col_student_id = 1  # คอลัมน์ที่ 2 ใน PDF (index 1)
-                col_remark = 4      # คอลัมน์ที่ 5 ใน PDF (index 4) หมายเหตุ/ระดับชั้น
-                col_grade = 7       # คอลัมน์ที่ 8 ใน PDF (index 7) เกรดปกติ
+                # ค่าดัชนีเริ่มต้น
+                col_student_id = 1
+                col_remark = 4
+                col_grade = 7
                 
-                # ตรวจสอบตำแหน่งคอลัมน์เพิ่มเติม (เผื่อหัวตารางขยับ)
+                # --- ระบบ Super Header: รวมข้อความ 4 บรรทัดแรกเผื่อหัวตารางถูกปัดบรรทัด ---
+                super_header = [""] * 20
                 for r_idx in range(min(5, len(table))):
-                    row_cleaned = [clean_invisible_and_spaces(cell) for cell in table[r_idx]]
-                    if any("เลขประจำตัว" in cell for cell in row_cleaned) or any("เกรด" in cell for cell in row_cleaned):
-                        for c_idx, cell in enumerate(row_cleaned):
-                            if "เลขประจำตัว" in cell:
-                                col_student_id = c_idx
-                            elif "หมายเหตุ" in cell:
-                                col_remark = c_idx
-                            elif "เกรด" in cell or "ผลการเรียน" in cell:
-                                col_grade = c_idx
-                        break
+                    if not table[r_idx]: continue
+                    for c_idx, cell in enumerate(table[r_idx]):
+                        if cell and c_idx < 20:
+                            super_header[c_idx] += clean_invisible_and_spaces(str(cell))
+                
+                # ล็อกตำแหน่งคอลัมน์จาก Super Header
+                for c_idx, text in enumerate(super_header):
+                    if "เลขประจำตัว" in text or "รหัสนักเรียน" in text:
+                        col_student_id = c_idx
+                    elif "หมายเหตุ" in text or "ระดับชั้น" in text:
+                        col_remark = c_idx
+                    elif any(kw in text for kw in ["เกรด", "ผลการเรียน", "ปกติ", "ประเมิน"]):
+                        col_grade = c_idx
 
                 # วนลูปอ่านข้อมูลนักเรียนรายแถว
                 for row in table:
-                    # ข้ามบรรทัดที่ข้อมูลไม่ถึงคอลัมน์รหัสนักเรียน
                     if not row or len(row) <= col_student_id:
                         continue
                         
-                    s_id = clean_invisible_and_spaces(row[col_student_id])
+                    s_id = clean_invisible_and_spaces(str(row[col_student_id]))
                     
                     if s_id.isdigit() and len(s_id) >= 3:
-                        # ดึงข้อมูลหมายเหตุแบบปลอดภัย ป้องกัน Index Out of Bounds
-                        remark_val = ""
-                        if len(row) > col_remark:
-                            remark_val = clean_invisible_and_spaces(row[col_remark])
+                        remark_val = clean_invisible_and_spaces(str(row[col_remark])) if len(row) > col_remark else ""
+                        grade_val = clean_invisible_and_spaces(str(row[col_grade])) if len(row) > col_grade else ""
                         
-                        # ดึงข้อมูลเกรดแบบปลอดภัย หากช่องเกรดว่าง จะปล่อยว่างทันที ไม่ไปดึงคอลัมน์อื่นมาแทน
-                        grade_val = ""
-                        if len(row) > col_grade:
-                            grade_val = clean_invisible_and_spaces(row[col_grade])
+                        # --- ระบบ Failsafe: หากช่องเกรดหลักว่างเปล่า ให้กวาดหาตัวเลขเกรดในช่องใกล้เคียง ---
+                        if not grade_val:
+                            # รายชื่อเกรดที่เป็นไปได้ทั้งหมด
+                            valid_grades = ["4", "4.0", "3.5", "3", "3.0", "2.5", "2", "2.0", "1.5", "1", "1.0", "0", "0.0", "ร", "มส", "ผ", "มผ", "ขร", "ผ่าน", "ไม่ผ่าน"]
+                            # กวาดจากคอลัมน์หลังสุดย้อนมาด้านหน้า
+                            for idx in range(len(row)-1, col_student_id, -1):
+                                val = clean_invisible_and_spaces(str(row[idx]))
+                                if val in valid_grades:
+                                    grade_val = val
+                                    break # ถ้าเจอเกรดที่ใช่ ให้ดึงมาใช้แล้วหยุดกวาดทันที
                         
                         all_data.append({
                             "เลขประจำตัวนักเรียน": s_id,
@@ -191,9 +198,9 @@ if uploaded_file is not None:
     if all_data:
         df = pd.DataFrame(all_data).drop_duplicates()
         
-        st.success(f"⚡ ดึงข้อมูลสำเร็จ! พบข้อมูลทั้งหมด {len(df)} รายการ (นำคอลัมน์ 'ที่' ออกแล้ว)")
+        st.success(f"⚡ ดึงข้อมูลสำเร็จ! พบข้อมูลทั้งหมด {len(df)} รายการ")
         
-        # แสดงผลตารางบน Streamlit โดยไม่มีคอลัมน์ "ที่"
+        # แสดงผลตารางโดยไม่มีคอลัมน์ "ที่"
         st.dataframe(df, use_container_width=True)
         
         # เขียนข้อมูลลงไฟล์ Excel
@@ -202,8 +209,8 @@ if uploaded_file is not None:
             df.to_excel(writer, index=False)
             
         st.download_button(
-            label="📥 ดาวน์โหลดไฟล์ Excel (v57)",
+            label="📥 ดาวน์โหลดไฟล์ Excel (v58)",
             data=output.getvalue(),
-            file_name="student_report_v57.xlsx",
+            file_name="student_report_v58.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
