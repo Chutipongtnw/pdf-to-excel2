@@ -20,7 +20,7 @@ def universal_thai_cleaner(text):
     text = text.replace('ค', 'ค้น').replace('คว', 'คว้า')
     text = text.replace('ด', 'ด้')
     
-    # ซ่อมคำเฉพาะวิชาโดยตรง (ด่านแรกก่อนล้างสเปซ)
+    # ซ่อมคำเฉพาะวิชาโดยตรง
     text = text.replace('สราง', 'สร้าง')
     text = text.replace('รู', 'รู้')
     text = text.replace('รู', 'รู้')
@@ -54,13 +54,13 @@ def universal_thai_cleaner(text):
     text = text.replace('ฟ่ง', 'ฟัง')
     text = text.replace('อ่านาน', 'อ่าน') 
     
-    # 6. ยุบสระที่เบิ้ล (เเ, แแ, าา)
+    # 6. ยุบสระที่เบิ้ล
     for _ in range(2):
         text = text.replace('เเ', 'เ')
         text = text.replace('แแ', 'แ')
         text = text.replace('าา', 'า')
     
-    # 7. คลังซ่อมคำมาตรฐาน (ด่านสองหลังล้างสเปซ เพื่อความแม่นยำสูงสุด)
+    # 7. คลังซ่อมคำมาตรฐาน
     if 'พิ่มเติม' in text and 'เพิ่ม' not in text:
         text = text.replace('พิ่มเติม', 'เพิ่มเติม')
 
@@ -92,7 +92,7 @@ def universal_thai_cleaner(text):
     # 9. คืนค่าช่องว่าง 1 เคาะ หน้าตัวเลขท้ายชื่อวิชา
     text = re.sub(r'(\d+)$', r' \1', text)
 
-    # 10. ตัดตัวเลขลำดับหน้าชื่อวิชาออก เช่น 1., 2., 3.
+    # 10. ตัดตัวเลขลำดับหน้าชื่อวิชาออก เช่น 1., 2.
     text = re.sub(r'^\s*\d+\s*\.\s*', '', text)
 
     return text.strip()
@@ -104,10 +104,10 @@ def clean_invisible_and_spaces(text):
     text = re.sub(r'[\u0000-\u001f\u007f-\u009f\uf000-\uf0ff\u200b\u00a0\s]', '', text)
     return text.strip()
 
-st.set_page_config(page_title="ระบบดึงข้อมูลอัจฉริยะ v56", layout="wide")
-st.title("📂 ระบบดึงข้อมูล PDF เป็น Excel v56 (แก้ไขเรื่องเกรดและชื่อวิชา)")
+st.set_page_config(page_title="ระบบดึงข้อมูลอัจฉริยะ v57", layout="wide")
+st.title("📂 ระบบดึงข้อมูล PDF เป็น Excel v57 (ลบช่อง 'ที่' และล็อกคอลัมน์เกรด)")
 
-uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อรัน v56", type="pdf")
+uploaded_file = st.file_uploader("เลือกไฟล์ PDF เพื่อรัน v57", type="pdf")
 
 if uploaded_file is not None:
     all_data = []
@@ -141,12 +141,12 @@ if uploaded_file is not None:
             # 4. ดึงข้อมูลตารางคะแนน/เกรดนักเรียน
             table = page.extract_table()
             if table:
-                # ค่าดัชนีคอลัมน์เริ่มต้นมาตรฐาน (Default Fallback)
-                col_student_id = 1  
-                col_remark = 4      
-                col_grade = 7       
+                # ค่าดัชนีคอลัมน์เริ่มต้นมาตรฐานของ PDF (ล็อกไว้เลยเพื่อความชัวร์)
+                col_student_id = 1  # คอลัมน์ที่ 2 ใน PDF (index 1)
+                col_remark = 4      # คอลัมน์ที่ 5 ใน PDF (index 4) หมายเหตุ/ระดับชั้น
+                col_grade = 7       # คอลัมน์ที่ 8 ใน PDF (index 7) เกรดปกติ
                 
-                # ตรวจสอบตำแหน่งคอลัมน์แบบไดนามิกที่มีการล้างอักขระซ่อนเร้นก่อนตรวจจับ
+                # ตรวจสอบตำแหน่งคอลัมน์เพิ่มเติม (เผื่อหัวตารางขยับ)
                 for r_idx in range(min(5, len(table))):
                     row_cleaned = [clean_invisible_and_spaces(cell) for cell in table[r_idx]]
                     if any("เลขประจำตัว" in cell for cell in row_cleaned) or any("เกรด" in cell for cell in row_cleaned):
@@ -161,21 +161,22 @@ if uploaded_file is not None:
 
                 # วนลูปอ่านข้อมูลนักเรียนรายแถว
                 for row in table:
-                    if not row or len(row) <= max(col_student_id, col_remark, col_grade):
+                    # ข้ามบรรทัดที่ข้อมูลไม่ถึงคอลัมน์รหัสนักเรียน
+                    if not row or len(row) <= col_student_id:
                         continue
                         
                     s_id = clean_invisible_and_spaces(row[col_student_id])
                     
                     if s_id.isdigit() and len(s_id) >= 3:
-                        remark_val = clean_invisible_and_spaces(row[col_remark])
-                        grade_val = clean_invisible_and_spaces(row[col_grade])
+                        # ดึงข้อมูลหมายเหตุแบบปลอดภัย ป้องกัน Index Out of Bounds
+                        remark_val = ""
+                        if len(row) > col_remark:
+                            remark_val = clean_invisible_and_spaces(row[col_remark])
                         
-                        # [Failsafe] หากตรวจจับคอลัมน์เกรดพลาดจนได้ค่าว่าง ให้ดึงจากคอลัมน์ที่ 7 หรือคอลัมน์สุดท้ายแทนทันที
-                        if not grade_val or grade_val == "":
-                            if len(row) > 7:
-                                grade_val = clean_invisible_and_spaces(row[7])
-                            else:
-                                grade_val = clean_invisible_and_spaces(row[-1])
+                        # ดึงข้อมูลเกรดแบบปลอดภัย หากช่องเกรดว่าง จะปล่อยว่างทันที ไม่ไปดึงคอลัมน์อื่นมาแทน
+                        grade_val = ""
+                        if len(row) > col_grade:
+                            grade_val = clean_invisible_and_spaces(row[col_grade])
                         
                         all_data.append({
                             "เลขประจำตัวนักเรียน": s_id,
@@ -190,23 +191,19 @@ if uploaded_file is not None:
     if all_data:
         df = pd.DataFrame(all_data).drop_duplicates()
         
-        # แทรกคอลัมน์ "ที่" เรียงลำดับไว้แสดงผลบนหน้าเว็บ Streamlit
-        df.insert(0, "ที่", range(1, len(df) + 1))
+        st.success(f"⚡ ดึงข้อมูลสำเร็จ! พบข้อมูลทั้งหมด {len(df)} รายการ (นำคอลัมน์ 'ที่' ออกแล้ว)")
         
-        st.success(f"⚡ ดึงข้อมูลสำเร็จ! พบข้อมูลทั้งหมด {len(df)} รายการ")
+        # แสดงผลตารางบน Streamlit โดยไม่มีคอลัมน์ "ที่"
         st.dataframe(df, use_container_width=True)
-        
-        # ตัดคอลัมน์ "ที่" ออกเฉพาะตอนบันทึกส่งออกเป็นไฟล์ Excel เท่านั้น
-        df_excel = df.drop(columns=["ที่"]) if "ที่" in df.columns else df
         
         # เขียนข้อมูลลงไฟล์ Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_excel.to_excel(writer, index=False)
+            df.to_excel(writer, index=False)
             
         st.download_button(
-            label="📥 ดาวน์โหลดไฟล์ Excel (v56)",
+            label="📥 ดาวน์โหลดไฟล์ Excel (v57)",
             data=output.getvalue(),
-            file_name="student_report_v56.xlsx",
+            file_name="student_report_v57.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
